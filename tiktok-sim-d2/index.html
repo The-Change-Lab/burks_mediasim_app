@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#000000" />
+  <title>Clips</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="phone">
+    <!-- Base tabs -->
+    <section id="view-home" class="view dark">
+      <div class="top-tabs">
+        <button data-top="following">Following</button>
+        <button data-top="foryou" class="active">For You</button>
+      </div>
+      <div id="home-feed" class="feed"></div>
+    </section>
+    <section id="view-inbox" class="view light-page"></section>
+    <section id="view-profile" class="view light-page"></section>
+
+    <!-- Profile / player / chat screens are pushed in here -->
+    <div id="overlays"></div>
+
+    <!-- Bottom navigation -->
+    <nav id="nav">
+      <button class="nav-btn active" data-tab="home"><span class="ic" data-icon="home"></span><span>Home</span></button>
+      <button class="nav-btn" data-tab="discover"><span class="ic" data-icon="search"></span><span>Discover</span></button>
+      <button class="nav-btn" data-tab="create"><span class="create-btn">+</span></button>
+      <button class="nav-btn" data-tab="inbox"><span class="ic" data-icon="inbox"></span><span>Inbox</span></button>
+      <button class="nav-btn" data-tab="profile"><span class="ic" data-icon="user"></span><span>Profile</span></button>
+    </nav>
+
+    <button id="unmute" hidden>🔇 Tap to unmute</button>
+    <div id="toast"></div>
+
+    <!-- Start / end screens -->
+    <div id="start" class="cover-screen">
+      <h1 id="start-title"></h1>
+      <p id="start-msg"></p>
+      <input id="pid-input" placeholder="Participant ID" autocomplete="off" hidden />
+      <button id="start-btn" class="primary" disabled>Loading…</button>
+      <div id="local-load" hidden>
+        <p>You're viewing this file directly on your computer, so the browser can't read <b>content.xlsx</b> by itself. Choose it here to preview. Once the site is on GitHub, this step isn't needed.</p>
+        <label class="primary">Choose content.xlsx<input id="local-file" type="file" accept=".xlsx,.xls" hidden /></label>
+      </div>
+      <p id="start-err" class="err"></p>
+      <ul id="load-msgs"></ul>
+    </div>
+    <div id="end" class="cover-screen" hidden>
+      <h1>All done</h1>
+      <p id="end-msg"></p>
+      <a id="end-link" class="primary" hidden>Continue</a>
+    </div>
+  </div>
+
+  <!-- Researcher debug panel (?debug=1) -->
+  <aside id="debug" hidden>
+    <div class="dbg-head">
+      <strong>Event log</strong>
+      <span id="dbg-count"></span>
+      <button id="dbg-toggle">hide</button>
+    </div>
+    <div class="dbg-body">
+      <div id="dbg-ids"></div>
+      <div id="dbg-status"></div>
+      <div class="dbg-actions">
+        <button id="dbg-csv">Download CSV</button>
+        <button id="dbg-json">Download JSON</button>
+      </div>
+      <ol id="dbg-list" reversed></ol>
+    </div>
+  </aside>
+
+  <script src="config.js"></script>
+  <script src="xlsx.mini.min.js"></script>
+  <script src="content-loader.js"></script>
+  <script src="logger.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
