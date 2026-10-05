@@ -41,8 +41,8 @@ window.APP_CONFIG = {
   // Leave url/anonKey blank to run without a backend (events are still
   // shown in the debug panel and can be downloaded as CSV).
   supabase: {
-    url: "",       // e.g. "https://abcdefgh.supabase.co"
-    anonKey: "",   // your project's anon / publishable key (safe to be public)
+    url: "https://ocdynnpefmwzjzwmpfuw.supabase.co",       // e.g. "https://abcdefgh.supabase.co"
+    anonKey: "sb_publishable_fd4qSVz0TAxtp85KsbJDFw_1Fcd5hCd",   // your project's anon / publishable key (safe to be public)
     table: "events",
   },
   flushIntervalMs: 5000, // how often events are sent to the backend
