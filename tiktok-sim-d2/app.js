@@ -395,6 +395,12 @@
   }
 
   function showTab(name, source) {
+    // Tabs switched off in config.js: the button stays visible, but tapping it only logs the attempt.
+    if ((name === "inbox" && C.allowInbox === false) || (name === "profile" && C.allowOwnProfile === false)) {
+      L.log("nav_click", { target: name, available: false, source: source || "nav" });
+      toast(name === "inbox" ? "Inbox isn't available" : "Profile isn't available");
+      return;
+    }
     if (name === "discover" || name === "create") {
       L.log("nav_click", { target: name, available: false });
       toast(name === "create" ? "Posting isn't available" : "Discover isn't available");
@@ -487,6 +493,12 @@
   }
 
   function openProfile(profileId, source, fromVideo) {
+    // Profiles switched off in config.js: log the tap but don't navigate.
+    if (C.allowProfilesFromFeed === false && /^feed/.test(source || "")) {
+      L.log("profile_click_blocked", { profile: profileId, source, video_id: fromVideo ? fromVideo.id : null });
+      toast("Profiles aren't available");
+      return;
+    }
     const n = S.overlays.length;
     const top = S.overlays[n - 1], below = S.overlays[n - 2];
     if (top && top.type === "profile" && top.meta.profile === profileId) return;
@@ -554,6 +566,11 @@
   }
 
   function openChat(conv, source) {
+    if (C.allowInbox === false) {
+      L.log("chat_click_blocked", { conversation: conv.id, profile: conv.profile, source });
+      toast("Messages aren't available");
+      return;
+    }
     const p = profileOf(conv.profile);
     const meta = { conversation: conv.id, profile: conv.profile, source };
     const root = h(`
