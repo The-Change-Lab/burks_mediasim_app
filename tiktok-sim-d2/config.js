@@ -18,7 +18,7 @@ window.APP_CONFIG = {
   requireParticipantId: true,
 
   // Text shown on the start screen (before the feed begins).
-  startTitle: "Welcome",
+  startTitle: "Welcome d2",
   startMessage:
     "You'll scroll through a short-video feed like you normally would. Tap Start when you're ready.",
   startButtonText: "Start",
