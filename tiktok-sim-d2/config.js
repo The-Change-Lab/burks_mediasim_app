@@ -7,7 +7,10 @@ window.APP_CONFIG = {
 
   // The spreadsheet with all videos, profiles and messages.
   contentFile: "content.xlsx",
-
+  googleDrive: {
+    apiKey: "AIzaSyC_ME3Hd6J-k_stPN2aHXyui6I5Qt9WN18",
+    videoFolder: "https://drive.google.com/drive/folders/...your folder link...",
+  },
   // ---- Participants ------------------------------------------------
   // Participant ID is read from the URL, e.g.  .../index.html?pid=12345
   participantParam: "pid",
