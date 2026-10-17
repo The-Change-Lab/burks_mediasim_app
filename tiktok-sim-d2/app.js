@@ -172,6 +172,8 @@
 
     feed.current = Math.max(0, Math.min(videos.length - 1, startIndex || 0));
     loadWindow(feed.current);
+    requestAnimationFrame(() => feed.items.forEach(checkCaption));
+    window.addEventListener("resize", () => feed.items.forEach(checkCaption));
     if (feed.current > 0) container.scrollTop = feed.items[feed.current].root.offsetTop;
     feed.items.forEach((it) => io.observe(it.root));
     return feed;
@@ -183,6 +185,7 @@
       <div class="feed-item${C.videoFit === "contain" ? " fit-contain" : ""}" data-index="${i}">
         <video playsinline webkit-playsinline loop preload="none"></video>
         <div class="spinner"></div>
+        <div class="speed-badge">2x ▶▶</div>
         <div class="tap-layer"></div>
         <div class="pause-icon">${ICON.play}</div>
         <div class="rail">
@@ -198,7 +201,11 @@
         </div>
         <div class="meta">
           <button class="user js-user">${esc(p.handle)} ${verifiedHTML(p)}</button>
-          <div class="caption">${captionHTML(v.caption)}</div>
+          <div class="caption-wrap">
+            <div class="caption">${captionHTML(v.caption)}</div>
+            <button class="caption-more" aria-label="Show full caption">more</button>
+          </div>
+          <button class="caption-less">less</button>
           <div class="sound">♫ ${esc(v.sound || "original sound")}</div>
         </div>
         <div class="progress"><div class="bar"></div></div>
@@ -270,9 +277,34 @@
       }, 1500);
     });
 
+    // ----- hold the right side = fast-forward (like TikTok)
+    const tap = $(".tap-layer", root);
+    let holdTimer = null, holdX = 0, holdY = 0, suppressClick = false;
+    const cancelHold = () => { clearTimeout(holdTimer); holdTimer = null; };
+    const releaseHold = () => {
+      cancelHold();
+      if (it.speeding) { stopSpeed(it, "released"); suppressClick = true; }
+    };
+    tap.addEventListener("pointerdown", (e) => {
+      if (C.holdToSpeedUp === false || (e.pointerType === "mouse" && e.button !== 0)) return;
+      const r = root.getBoundingClientRect();
+      if (e.clientX - r.left < r.width / 2) return; // left half: normal taps only
+      holdX = e.clientX; holdY = e.clientY;
+      cancelHold();
+      holdTimer = setTimeout(() => { holdTimer = null; startSpeed(it); }, 300);
+    });
+    tap.addEventListener("pointermove", (e) => {
+      // Moving the finger means they're scrolling, not holding.
+      if (holdTimer && Math.hypot(e.clientX - holdX, e.clientY - holdY) > 10) cancelHold();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((t) => tap.addEventListener(t, releaseHold));
+    tap.addEventListener("contextmenu", (e) => e.preventDefault()); // no long-press menu
+
     // ----- tap = pause/play, double tap = like
     let tapTimer = null;
-    $(".tap-layer", root).addEventListener("click", (e) => {
+    tap.addEventListener("click", (e) => {
+      if (suppressClick) { suppressClick = false; return; } // that was a hold, not a tap
+      if (it.captionOpen) { closeCaption(it, "tapped_video"); return; } // like TikTok: tap away closes the caption
       if (tapTimer) {
         clearTimeout(tapTimer); tapTimer = null;
         heartBurst(root, e);
@@ -292,6 +324,15 @@
     $(".js-save", root).addEventListener("click", () => toggleSave(v, ctx()));
     $(".js-comment", root).addEventListener("click", () => { L.log("comment_click", ctx()); toast("Comments are turned off"); });
     $(".js-share", root).addEventListener("click", () => { L.log("share_click", ctx()); toast("Sharing isn't available"); });
+
+    // ----- long captions: show the first lines, tap to read the rest
+    const toggleCaption = (e) => {
+      e.stopPropagation();
+      if (it.captionOpen) closeCaption(it, "tapped_less");
+      else if (root.classList.contains("cap-trunc")) openCaption(it);
+    };
+    $(".caption-wrap", root).addEventListener("click", toggleCaption);
+    $(".caption-less", root).addEventListener("click", toggleCaption);
     return it;
   }
 
@@ -309,7 +350,61 @@
       }
     });
   }
+  // Is this caption longer than the visible lines? (Shows the "more" button.)
+  function checkCaption(it) {
+    if (it.captionOpen) return;
+    const cap = $(".caption", it.root);
+    const trunc = cap.scrollHeight > cap.clientHeight + 1;
+    it.root.classList.toggle("cap-trunc", trunc);
+  }
+  function openCaption(it) {
+    if (it.captionOpen) return;
+    it.captionOpen = { start: now() };
+    it.root.classList.add("caption-open");
+    $(".meta", it.root).scrollTop = 0;
+    L.log("caption_expand", { video_id: it.data.id, context: it.feed.context, video_time: it.video.currentTime,
+      caption_length: (it.data.caption || "").length });
+  }
+  function closeCaption(it, reason) {
+    const c = it.captionOpen;
+    if (!c) return;
+    it.captionOpen = null;
+    it.root.classList.remove("caption-open");
+    const ms = Math.round(now() - c.start);
+    const w = it.feed.view && it.feed.view.index === it.index ? it.feed.view : null;
+    if (w) { w.capCount++; w.capMs += ms; }
+    L.log("caption_collapse", { video_id: it.data.id, context: it.feed.context, video_time: it.video.currentTime,
+      duration_ms: ms, reason });
+  }
+
+  // Fast-forward while the right side is held down.
+  function startSpeed(it) {
+    const feed = it.feed;
+    if (!feed.active || feed.current !== it.index || it.userPaused || it.video.paused || it.speeding) return;
+    const rate = C.holdSpeed || 2;
+    it.speeding = { start: now(), from: it.video.currentTime };
+    it.video.playbackRate = rate;
+    $(".speed-badge", it.root).textContent = rate + "x ▶▶";
+    it.root.classList.add("speeding");
+    L.log("speed_start", { video_id: it.data.id, context: feed.context, video_time: it.video.currentTime, rate });
+  }
+  function stopSpeed(it, reason) {
+    const sp = it.speeding;
+    if (!sp) return;
+    it.speeding = null;
+    it.video.playbackRate = 1;
+    it.root.classList.remove("speeding");
+    const ms = Math.round(now() - sp.start);
+    const w = it.feed.view && it.feed.view.index === it.index ? it.feed.view : null;
+    if (w) { w.speedCount++; w.speedMs += ms; }
+    L.log("speed_end", { video_id: it.data.id, context: it.feed.context, video_time: it.video.currentTime,
+      duration_ms: ms, from_time: Math.round(sp.from * 1000) / 1000, reason });
+  }
+
   function resetItem(it) {
+    if (it.speeding) stopSpeed(it, "left_video");
+    if (it.captionOpen) closeCaption(it, "left_video");
+    it.video.playbackRate = 1;
     it.video.pause();
     try { it.video.currentTime = 0; } catch (e) {}
     it.userPaused = false;
@@ -320,10 +415,12 @@
   function startView(feed) {
     const it = feed.items[feed.current];
     if (!it) return;
+    checkCaption(it);
     feed.view = {
       index: feed.current, videoId: it.data.id, start: now(), playMs: 0, playStart: null,
       pauses: 0, loops: 0, buffering: 0, hiddenMs: 0, maxTime: it.video.currentTime,
-      waitStart: null, stallMs: 0, firstPlay: null, reloads: 0,
+      waitStart: null, stallMs: 0, firstPlay: null, reloads: 0, speedCount: 0, speedMs: 0,
+      capCount: 0, capMs: 0,
       lastTime: it.video.currentTime, startTime: it.video.currentTime,
     };
     L.log("video_view_start", { video_id: it.data.id, context: feed.context, video_time: it.video.currentTime,
@@ -337,6 +434,10 @@
     const w = feed.view, it = feed.items[w.index];
     if (w.playStart != null) { w.playMs += now() - w.playStart; w.playStart = null; }
     if (w.waitStart != null) { w.stallMs += now() - w.waitStart; w.waitStart = null; }
+    if (it.speeding) stopSpeed(it, "view_end");
+    if (it.captionOpen) { // count the open time, but leave it open if they come back (e.g. app switch)
+      const ms = now() - it.captionOpen.start; w.capMs += ms; it.captionOpen.start = now();
+    }
     if (S.hiddenAt != null) w.hiddenMs += now() - S.hiddenAt;
     it.root.classList.remove("loading");
     it.video.pause();
@@ -358,6 +459,11 @@
       startup_ms: w.firstPlay == null ? null : Math.round(w.firstPlay), // time until it first started playing
       never_played: w.firstPlay == null && !it.userPaused,
       reload_count: w.reloads,
+      speed_count: w.speedCount,                    // times they held to fast-forward
+      speed_ms: w.speedMs,                          // total time spent fast-forwarding
+      caption_truncated: it.root.classList.contains("cap-trunc"), // caption was long enough to need "more"
+      caption_expand_count: w.capCount + (it.captionOpen ? 1 : 0),
+      caption_open_ms: Math.round(w.capMs),         // time spent with the full caption open
       ended_paused: it.userPaused,
       liked: S.liked.has(w.videoId),
       exit_reason: reason,
@@ -703,6 +809,7 @@
   // ================================================================ START
   function init() {
     document.title = C.appName || "Clips";
+    document.documentElement.style.setProperty("--caption-lines", String(C.captionLines || 2));
     const params = new URLSearchParams(location.search);
     const urlPid = params.get(C.participantParam || "pid");
 

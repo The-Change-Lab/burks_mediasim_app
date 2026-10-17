@@ -30,7 +30,9 @@ svg { display: block; }
 .feed-item video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
 .feed-item.fit-contain video { object-fit: contain; }
 .feed-item::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 38%; background: linear-gradient(transparent, rgba(0,0,0,.5)); pointer-events: none; z-index: 1; }
-.tap-layer { position: absolute; inset: 0; z-index: 1; }
+.tap-layer { position: absolute; inset: 0; z-index: 1; touch-action: pan-y; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.speed-badge { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); z-index: 4; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; font-weight: 700; padding: 6px 12px; border-radius: 14px; opacity: 0; transition: opacity .15s; pointer-events: none; }
+.feed-item.speeding .speed-badge { opacity: 1; }
 .pause-icon { position: absolute; top: 50%; left: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; opacity: 0; transform: scale(1.3); transition: opacity .15s, transform .15s; pointer-events: none; z-index: 2; }
 .pause-icon svg { width: 100%; height: 100%; fill: rgba(255,255,255,.85); }
 .feed-item.paused .pause-icon { opacity: 1; transform: scale(1); }
@@ -55,6 +57,21 @@ svg { display: block; }
 .meta { position: absolute; left: 12px; right: 76px; bottom: 16px; z-index: 3; text-shadow: 0 1px 2px rgba(0,0,0,.45); font-size: 14px; line-height: 1.35; }
 .meta .user { font-weight: 700; font-size: 16px; margin-bottom: 4px; display: inline-flex; align-items: center; gap: 4px; }
 .meta .caption b { font-weight: 700; }
+/* Long captions: show the first lines; tap to read the rest */
+.caption-wrap { position: relative; cursor: default; }
+.caption { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--caption-lines, 2); line-clamp: var(--caption-lines, 2); overflow: hidden; overflow-wrap: anywhere; }
+.cap-trunc .caption-wrap { cursor: pointer; }
+.cap-trunc .caption { padding-right: 38px; }
+.caption-more, .caption-less { font-weight: 700; color: rgba(255,255,255,.85); text-shadow: 0 1px 2px rgba(0,0,0,.45); }
+.caption-more { display: none; position: absolute; right: 0; bottom: 0; line-height: inherit; }
+.cap-trunc .caption-more { display: block; }
+.caption-less { display: none; margin-top: 4px; }
+.caption-open .caption { display: block; -webkit-line-clamp: unset; line-clamp: none; overflow: visible; padding-right: 0; }
+.caption-open .caption-more { display: none; }
+.caption-open .caption-less { display: block; }
+.caption-open .meta { max-height: 55%; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.caption-open .meta::-webkit-scrollbar { display: none; }
+.feed-item.caption-open::after { height: 70%; background: linear-gradient(transparent, rgba(0,0,0,.75)); }
 .meta .sound { margin-top: 6px; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .verified { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #20d5ec; color: #fff; font-size: 10px; line-height: 14px; text-align: center; font-weight: 900; }
 .progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: rgba(255,255,255,.2); z-index: 3; }
