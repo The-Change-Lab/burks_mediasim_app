@@ -9,7 +9,7 @@ window.APP_CONFIG = {
   contentFile: "content.xlsx",
   googleDrive: {
     apiKey: "AIzaSyC_ME3Hd6J-k_stPN2aHXyui6I5Qt9WN18",
-    videoFolder: "https://drive.google.com/drive/folders/1hE2nXpllhRP-0D4SuUgwka6Gr0n-afI9?usp=drive_link",
+    videoFolder: "",
   },
   // ---- Participants ------------------------------------------------
   // Participant ID is read from the URL, e.g.  .../index.html?pid=12345
@@ -28,7 +28,7 @@ window.APP_CONFIG = {
   // "shuffle" = random order per participant (same order if they reload)
   feedOrder: "fixed",
   // "cover" fills the screen (crops edges); "contain" shows the whole video.
-  videoFit: "cover",
+  videoFit: "auto",
   // Start with sound muted? (Browsers may force mute until a tap anyway.)
   startMuted: false,
 
