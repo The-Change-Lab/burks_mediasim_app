@@ -124,7 +124,7 @@
         }
       }
       feed.current = i;
-      feed.items.forEach((it, k) => { it.video.preload = Math.abs(k - i) <= 1 ? "auto" : "metadata"; });
+      loadWindow(i);
       if (feed.active) startView(feed);
     };
     feed.activate = function () {
@@ -155,7 +155,23 @@
       });
     }, { root: container, threshold: [0.6] });
 
+    // Only keep a few videos loaded at once (one behind, the current one, two
+    // ahead). Loading every video in the feed at the same time makes them all slow.
+    function loadWindow(i) {
+      feed.items.forEach((it, k) => {
+        const d = k - i, vid = it.video;
+        if (d >= -1 && d <= 2) {
+          vid.preload = d === 0 || d === 1 ? "auto" : "metadata";
+          if (!vid.getAttribute("src")) vid.src = it.data.src;
+        } else if ((d < -2 || d > 4) && vid.getAttribute("src")) {
+          vid.removeAttribute("src"); vid.load(); // free the connection
+          it.root.classList.remove("loading");
+        }
+      });
+    }
+
     feed.current = Math.max(0, Math.min(videos.length - 1, startIndex || 0));
+    loadWindow(feed.current);
     if (feed.current > 0) container.scrollTop = feed.items[feed.current].root.offsetTop;
     feed.items.forEach((it) => io.observe(it.root));
     return feed;
@@ -165,7 +181,8 @@
     const p = profileOf(v.profile);
     const root = h(`
       <div class="feed-item${C.videoFit === "contain" ? " fit-contain" : ""}" data-index="${i}">
-        <video playsinline webkit-playsinline loop preload="metadata" src="${esc(v.src)}"></video>
+        <video playsinline webkit-playsinline loop preload="none"></video>
+        <div class="spinner"></div>
         <div class="tap-layer"></div>
         <div class="pause-icon">${ICON.play}</div>
         <div class="rail">
@@ -195,10 +212,40 @@
     if (fbInit && S.following.has(v.profile)) { fbInit.classList.add("done"); fbInit.textContent = "✓"; }
 
     // ----- watch-time accounting from real playback events
-    vid.addEventListener("playing", () => { const w = myView(); if (w && w.playStart == null) w.playStart = now(); });
+    let stallTimer = null;
+    const endWait = (w) => {
+      clearTimeout(stallTimer); stallTimer = null;
+      if (w && w.waitStart != null) { w.stallMs += now() - w.waitStart; w.waitStart = null; }
+    };
+    vid.addEventListener("playing", () => {
+      root.classList.remove("loading");
+      const w = myView(); if (!w) return;
+      endWait(w);
+      if (w.firstPlay == null) w.firstPlay = now() - w.start;
+      if (w.playStart == null) w.playStart = now();
+    });
+    vid.addEventListener("canplay", () => { if (vid.paused) root.classList.remove("loading"); });
     const stopClock = () => { const w = myView(); if (w && w.playStart != null) { w.playMs += now() - w.playStart; w.playStart = null; } };
-    vid.addEventListener("pause", stopClock);
-    vid.addEventListener("waiting", () => { stopClock(); const w = myView(); if (w) { w.buffering++; } });
+    vid.addEventListener("pause", () => { stopClock(); endWait(myView()); root.classList.remove("loading"); });
+    vid.addEventListener("waiting", () => {
+      stopClock();
+      const w = myView(); if (!w) return;
+      root.classList.add("loading");
+      w.buffering++;
+      if (w.waitStart == null) w.waitStart = now();
+      // Stuck for 8 seconds? Reconnect and carry on from the same spot (max twice per view).
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => {
+        const w2 = myView();
+        if (!w2 || w2 !== w || w.waitStart == null || w.reloads >= 2 || !vid.getAttribute("src")) return;
+        w.reloads++;
+        const t = vid.currentTime;
+        L.log("video_stall_reload", { ...ctx(), stalled_ms: Math.round(now() - w.waitStart), reload_count: w.reloads });
+        vid.addEventListener("loadedmetadata", () => { try { vid.currentTime = t; } catch (e) {} }, { once: true });
+        vid.src = v.src;
+        if (!it.userPaused) playItem(it);
+      }, 8000);
+    });
     vid.addEventListener("timeupdate", () => {
       const t = vid.currentTime, dur = vid.duration || 0;
       if (dur) it.bar.style.width = (100 * t / dur).toFixed(2) + "%";
@@ -210,7 +257,18 @@
       if (w.loops === 0) w.maxTime = Math.max(w.maxTime, t); else w.maxTime = dur;
       w.lastTime = t;
     });
-    vid.addEventListener("error", () => L.log("video_error", { ...ctx(), code: vid.error && vid.error.code, src: v.src }));
+    let retries = 0;
+    vid.addEventListener("error", () => {
+      if (!vid.getAttribute("src")) return; // unloaded on purpose
+      L.log("video_error", { ...ctx(), code: vid.error && vid.error.code, src: v.src, will_retry: retries < 1 });
+      if (retries >= 1) { root.classList.remove("loading"); return; }
+      retries++;
+      setTimeout(() => {
+        if (!vid.getAttribute("src")) return;
+        vid.src = v.src;
+        if (myView() && !it.userPaused) playItem(it);
+      }, 1500);
+    });
 
     // ----- tap = pause/play, double tap = like
     let tapTimer = null;
@@ -265,10 +323,12 @@
     feed.view = {
       index: feed.current, videoId: it.data.id, start: now(), playMs: 0, playStart: null,
       pauses: 0, loops: 0, buffering: 0, hiddenMs: 0, maxTime: it.video.currentTime,
+      waitStart: null, stallMs: 0, firstPlay: null, reloads: 0,
       lastTime: it.video.currentTime, startTime: it.video.currentTime,
     };
     L.log("video_view_start", { video_id: it.data.id, context: feed.context, video_time: it.video.currentTime,
       position: feed.current, profile: it.data.profile, resumed: it.video.currentTime > 0.05 });
+    if (it.video.readyState < 3 && !it.userPaused) it.root.classList.add("loading");
     if (it.userPaused) return; // came back to a video the participant had paused
     playItem(it);
   }
@@ -276,7 +336,9 @@
   function endView(feed, reason) {
     const w = feed.view, it = feed.items[w.index];
     if (w.playStart != null) { w.playMs += now() - w.playStart; w.playStart = null; }
+    if (w.waitStart != null) { w.stallMs += now() - w.waitStart; w.waitStart = null; }
     if (S.hiddenAt != null) w.hiddenMs += now() - S.hiddenAt;
+    it.root.classList.remove("loading");
     it.video.pause();
     const dur = it.video.duration || null;
     L.log("video_view_end", {
@@ -292,6 +354,10 @@
       pct_watched: dur ? Math.min(1, Math.round((w.maxTime / dur) * 1000) / 1000) : null,
       completed: !!(dur && (w.loops > 0 || w.maxTime >= dur - 0.3)),
       buffering_count: w.buffering,
+      stall_ms: Math.round(w.stallMs),              // time spent frozen/loading mid-view
+      startup_ms: w.firstPlay == null ? null : Math.round(w.firstPlay), // time until it first started playing
+      never_played: w.firstPlay == null && !it.userPaused,
+      reload_count: w.reloads,
       ended_paused: it.userPaused,
       liked: S.liked.has(w.videoId),
       exit_reason: reason,
@@ -647,7 +713,7 @@
     // Build screens (hidden behind the start screen)
     S.homeFeed = createFeed($("#home-feed"), feedVideos, "home");
     $("#view-inbox").appendChild(renderInbox());
-    $("#view-profile").appendChild(renderProfile(D.selfProfile, { back: false, context: "profile:self" }));
+    if (C.allowOwnProfile === true) $("#view-profile").appendChild(renderProfile(D.selfProfile, { back: false, context: "profile:self" }));
     $("#view-home").classList.add("active");
 
     document.querySelectorAll(".nav-btn").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab, "nav")));
