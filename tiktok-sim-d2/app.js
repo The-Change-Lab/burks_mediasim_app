@@ -265,6 +265,13 @@
       w.lastTime = t;
     });
     let retries = 0;
+    // "auto" fit (default): vertical videos fill the screen; horizontal and
+    // square ones are shown in full with black bars, like TikTok.
+    vid.addEventListener("loadedmetadata", () => {
+      const fit = C.videoFit || "auto";
+      if (fit !== "auto" || !vid.videoWidth || !vid.videoHeight) return;
+      root.classList.toggle("fit-contain", vid.videoWidth / vid.videoHeight >= 0.7);
+    });
     vid.addEventListener("error", () => {
       if (!vid.getAttribute("src")) return; // unloaded on purpose
       L.log("video_error", { ...ctx(), code: vid.error && vid.error.code, src: v.src, will_retry: retries < 1 });
@@ -464,6 +471,9 @@
       caption_truncated: it.root.classList.contains("cap-trunc"), // caption was long enough to need "more"
       caption_expand_count: w.capCount + (it.captionOpen ? 1 : 0),
       caption_open_ms: Math.round(w.capMs),         // time spent with the full caption open
+      video_w: it.video.videoWidth || null,
+      video_h: it.video.videoHeight || null,
+      fit: it.root.classList.contains("fit-contain") ? "contain" : "cover", // shown in full vs. cropped to fill
       ended_paused: it.userPaused,
       liked: S.liked.has(w.videoId),
       exit_reason: reason,
