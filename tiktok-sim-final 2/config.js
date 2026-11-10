@@ -16,7 +16,7 @@ window.APP_CONFIG = {
 
   // Google Drive hosting is switched off (videos load from videoFolder above).
   googleDrive: {
-    apiKey: "",
+    apiKey: "AIzaSyC_ME3Hd6J-k_stPN2aHXyui6I5Qt9WN18",
     videoFolder: "",
   },
 
@@ -64,8 +64,8 @@ window.APP_CONFIG = {
   // ---- Data collection ------------------------------------------------
   // IMPORTANT: fill these in before running participants, or no data is saved.
   supabase: {
-    url: "",      // e.g. "https://abcdefgh.supabase.co"
-    anonKey: "",  // the anon / publishable key (never the secret key)
+    url: "https://ocdynnpefmwzjzwmpfuw.supabase.co",       // e.g. "https://abcdefgh.supabase.co"
+    anonKey: "sb_publishable_fd4qSVz0TAxtp85KsbJDFw_1Fcd5hCd",   // your project's anon / publishable key (safe to be public)
     table: "events",
   },
   flushIntervalMs: 5000,
